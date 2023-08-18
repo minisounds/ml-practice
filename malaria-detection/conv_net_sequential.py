@@ -61,7 +61,7 @@ test_dataset = test_dataset.map(resize_rescale)
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 
-# CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture
+# CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture using SEQUENTIAL API
 model = tf.keras.Sequential([
     layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
     
@@ -81,6 +81,7 @@ model = tf.keras.Sequential([
     layers.Dense(1, activation="sigmoid")
 ])
 model.summary()
+
 
 # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
 
