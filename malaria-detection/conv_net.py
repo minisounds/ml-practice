@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
-from keras import layers, losses, optimizers
+from keras import layers, losses, optimizers, models
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -91,7 +91,8 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
 
 history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
 
-# PLOT LOSS OVER TIME 
+# # PLOT LOSS OVER TIME 
+
 # plt.plot(history.history['loss'])
 # plt.plot(history.history['val_loss'])
 # plt.title('MODEL LOSS')
@@ -104,7 +105,8 @@ history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, ve
 test_dataset = test_dataset.batch(1)
 model.evaluate(test_dataset)
 
-# VISUALIZE YOUR DATA (removing for quickness)
+# VISUALIZE YOUR DATA
+
 for i, (image, label) in enumerate(test_dataset.take(9)): 
     ax = plt.subplot(3, 3, i+1)
     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
@@ -112,4 +114,3 @@ for i, (image, label) in enumerate(test_dataset.take(9)):
     plt.axis('off')
     plt.show()
 
-# model.predict(test_dataset.take(1))[0][0]
