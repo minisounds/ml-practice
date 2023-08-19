@@ -103,12 +103,12 @@ model.summary()
 
 # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
 
-model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
-              loss = losses.BinaryCrossentropy(),
-              metrics = 'accuracy'
-              )
+# model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
+#               loss = losses.BinaryCrossentropy(),
+#               metrics = 'accuracy'
+#               )
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
+# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
 
 # PLOT LOSS OVER TIME 
 
@@ -120,15 +120,15 @@ history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, ve
 # plt.legend(['train', "val_loss"])
 # plt.show()
 
-# MODEL EVALUATION AND TESTING 
-test_dataset = test_dataset.batch(1)
-model.evaluate(test_dataset)
+# # MODEL EVALUATION AND TESTING 
+# test_dataset = test_dataset.batch(1)
+# model.evaluate(test_dataset)
 
-# VISUALIZE YOUR DATA
-for i, (image, label) in enumerate(test_dataset.take(9)): 
-    ax = plt.subplot(3, 3, i+1)
-    plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
-    plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
-    plt.axis('off')
-    plt.show()
+# # VISUALIZE YOUR DATA
+# for i, (image, label) in enumerate(test_dataset.take(9)): 
+#     ax = plt.subplot(3, 3, i+1)
+#     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
+#     plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
+#     plt.axis('off')
+#     plt.show()
 
