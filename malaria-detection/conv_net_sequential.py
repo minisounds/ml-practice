@@ -6,6 +6,8 @@ from tensorflow.keras.layers import Layer
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 import numpy as np
 import pandas as pd
+import sklearn
+from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -33,7 +35,7 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
     val_dataset = dataset.skip(int(TRAIN_RATIO * LENGTH))
     val_dataset = val_dataset.take(int(VAL_RATIO * LENGTH))
     
-    test_dataset = dataset.skip(int((TEST_RATIO + TRAIN_RATIO) * LENGTH))
+    test_dataset = dataset.skip(int((TEST_RATIO + TRAIN_RATIO+0.18) * LENGTH))
     test_dataset = test_dataset.take(int(TEST_RATIO * LENGTH))
     
     return train_dataset, val_dataset, test_dataset
@@ -120,28 +122,47 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               metrics = metrics
               )
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1)
 
-# # PLOT LOSS OVER TIME 
+# # # PLOT LOSS OVER TIME 
 
-# plt.plot(history.history['loss'])
-# plt.plot(history.history['val_loss'])
-# plt.title('MODEL LOSS')
-# plt.ylabel('LOSS')
-# plt.xlabel('EPOCHS')
-# plt.legend(['train', "val_loss"])
-# plt.show()
+# # plt.plot(history.history['loss'])
+# # plt.plot(history.history['val_loss'])
+# # plt.title('MODEL LOSS')
+# # plt.ylabel('LOSS')
+# # plt.xlabel('EPOCHS')
+# # plt.legend(['train', "val_loss"])
+# # plt.show()
 
 # MODEL EVALUATION AND TESTING 
 test_dataset = test_dataset.batch(1)
 model.evaluate(test_dataset)
 
+# VISUALIZING CONFUSION MATRIX 
+
+labels = []
+inp = []
+
+for x,y in test_dataset.as_numpy_iterator(): 
+    labels.append(y)
+    inp.append(x)
+
+inp = np.array(inp)
+npy_inputs = np.squeeze(inp, axis = 1)
+
+predicted = model.predict(npy_inputs)
+
+threshold = 0.5
+cm = confusion_matrix(labels, predicted > threshold)
+print(cm)
+
+
 # VISUALIZE YOUR DATA
 
-for i, (image, label) in enumerate(test_dataset.take(9)): 
-    ax = plt.subplot(3, 3, i+1)
-    plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
-    plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
-    plt.axis('off')
-    plt.show()
+# for i, (image, label) in enumerate(test_dataset.take(9)): 
+#     ax = plt.subplot(3, 3, i+1)
+#     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
+#     plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
+#     plt.axis('off')
+#     plt.show()
 
