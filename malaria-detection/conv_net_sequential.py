@@ -146,7 +146,7 @@ inp = []
 for x,y in test_dataset.as_numpy_iterator(): 
     labels.append(y)
     inp.append(x)
-
+ 
 inp = np.array(inp)
 npy_inputs = np.squeeze(inp, axis = 1)
 
@@ -156,7 +156,16 @@ threshold = 0.5
 cm = confusion_matrix(labels, predicted > threshold)
 print(cm)
 
+# Plot Confusion Matrix
 
+plt.figure(figsize=(8,8))
+
+sns.heatmap(cm, annot=True)
+plt.title("Confusion Matrix - {}".format(threshold))
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+
+plt.show()
 # VISUALIZE YOUR DATA
 
 # for i, (image, label) in enumerate(test_dataset.take(9)): 
