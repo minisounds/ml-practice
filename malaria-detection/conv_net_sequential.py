@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 from keras import layers, losses, optimizers, models
+from tensorflow.keras.layers import Layer
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -61,6 +62,30 @@ test_dataset = test_dataset.map(resize_rescale)
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 
+# Create a customizable dense layer for use in Sequential API model
+
+class NeuraLearnDense(Layer): 
+    def __init__(self, output_units, activation): 
+        super(NeuraLearnDense, self).__init__()
+        
+        self.output_units = output_units
+        self.activation = activation
+        
+    def build(self, input_feature_shape): 
+        self.w = self.add_weight(shape = (input_feature_shape[-1], self.output_units), initializer = "random_normal", trainable = True)
+        self.b = self.add_weight(shape = (self.output_units, ), initializer = "random_normal", trainable = True)
+        
+    def call(self, input_features): 
+        pre_output = tf.matmul(input_features, self.w) + self.b
+        
+        if self.activation == "relu":
+            return tf.nn.relu(pre_output)
+        elif self.activation == "sigmoid": 
+            return tf.math.sigmoid(pre_output)
+        else: 
+            return pre_output
+    
+
 # CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture using SEQUENTIAL API
 model = tf.keras.Sequential([
     layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
@@ -74,11 +99,11 @@ model = tf.keras.Sequential([
     layers.MaxPool2D(pool_size = (2,2), strides = 2),
     
     layers.Flatten(),
-    layers.Dense(100, activation = "relu"),
+    NeuraLearnDense(100, activation = "relu"),
     layers.BatchNormalization(),
-    layers.Dense(10, activation = "relu"),
+    NeuraLearnDense(10, activation = "relu"),
     layers.BatchNormalization(),
-    layers.Dense(1, activation="sigmoid")
+    NeuraLearnDense(1, activation="sigmoid")
 ])
 model.summary()
 

@@ -3,7 +3,6 @@ import tensorflow_datasets as tfds
 import keras
 from keras import layers, losses, optimizers, models, Input
 from tensorflow.keras.layers import Layer
-from tensorflow.keras.models import Model
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -29,13 +28,13 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
     LENGTH = len(dataset)
 
     train_dataset = dataset.take(int(TRAIN_RATIO * LENGTH))
-    
+
     val_dataset = dataset.skip(int(TRAIN_RATIO * LENGTH))
     val_dataset = val_dataset.take(int(VAL_RATIO * LENGTH))
-    
+
     test_dataset = dataset.skip(int((TEST_RATIO + TRAIN_RATIO) * LENGTH))
     test_dataset = test_dataset.take(int(TEST_RATIO * LENGTH))
-    
+
     return train_dataset, val_dataset, test_dataset
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
@@ -47,7 +46,7 @@ train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_R
 #     plt.title(dataset_info.features['label'].int2str(label))
 #     plt.axis('off')
     # plt.show()
-    
+
 # DATA PREPROCESSING - NORMALIZE THE DATA AND STANDARDIZE FORMAT
 
 IM_SIZE = 224
@@ -73,94 +72,68 @@ val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = Tr
 class FeatureExtractor(Layer): 
     def __init__(self, filters, kernel_size, strides, padding, activation, pool_size): 
         super(FeatureExtractor, self).__init__()
-        
+
         self.conv_1 = layers.Conv2D(filters = filters, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
         self.batch_1 = layers.BatchNormalization()
         self.pool_1 = layers.MaxPool2D(pool_size=pool_size, strides=2*strides)
-        
-        self.conv_2 = layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
+
+        self.conv_2 = layers.Conv2D(filters=filters*2, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
         self.batch_2 = layers.BatchNormalization()
         self.pool_2 = layers.MaxPool2D(pool_size=pool_size, strides=2*strides)
-    
+
     def call(self, x, training): 
-        
+
         x = self.conv_1(x)
         x = self.batch_1(x, training = training)
         x = self.pool_1(x)
-        
+
         x = self.conv_2(x)
         x = self.batch_2(x, training = training)
         x = self.pool_2(x)
-        
-        return x
 
-    
-# FEATURE EXTRACTOR MODEL CLASS 
-
-class LenetModel(Model): 
-    def __init__(self): 
-        super(LenetModel, self).__init__()
-
-        self.feature_extractor = FeatureExtractor(8, 3, 1, "valid", "relu", 2)
-    
-    def call(self, x): 
-        
-        x = self.feature_extractor(x, training = False)
-        
         return x
 
 # FINAL OUTPUT MODEL CLASS 
 
-class FinalModel(Model): 
-    def __init__(self, activation): 
+class FinalModel(tf.keras.Model): 
+    def __init__(self): 
         super(FinalModel, self).__init__()
         
-        # self.lenet_model = LenetModel()
-        
+        self.feature_extractor = FeatureExtractor(8, 3, 1, "valid", "relu", 2)
+
         self.flatten = layers.Flatten()
-        self.dense_1 = layers.Dense(100, activation = activation)
+        self.dense_1 = layers.Dense(100, activation = "relu")
         self.batch_normalize_1 = layers.BatchNormalization()
-        
-        self.dense_2 = layers.Dense(10, activation = activation)
+
+        self.dense_2 = layers.Dense(10, activation = "relu")
         self.batch_normalize_2 = layers.BatchNormalization()
-        
+
         self.final_output = layers.Dense(1, activation = "sigmoid")
-        
+
     def call(self, x, training): 
-        # x = self.lenet_model.call(x = Input(shape = (IM_SIZE, IM_SIZE, 3)))
-        
+
+        x = self.feature_extractor(x)
         x = self.flatten(x)
         x = self.dense_1(x)
         x = self.batch_normalize_1(x, training = training)
-        
+
         x = self.dense_2(x)
         x = self.batch_normalize_2(x, training = training)
-        
+
         x = self.final_output(x)
-        
+
         return x
-    
-# FINAL OUTPUT GATHERING MODEL WITH MODEL SUBCLASSING
-lenet_model = LenetModel()
-final_model = FinalModel("relu")
 
-# Connect Inputs and Outputs of Different Models 
-inputs = Input(shape = (IM_SIZE, IM_SIZE, 3))
-lenet_output = lenet_model.call(inputs)
-final_output = final_model.call(lenet_output, training = False)
+final_sub_classed = FinalModel()
+final_sub_classed(tf.zeros([1, 224, 224, 3]))
+final_sub_classed.summary()
 
-# Create a new model that takes inputs and outputs final_output
-full_model = Model(inputs, final_output)
-full_model.summary()
-
-# COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
-
-full_model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
+final_sub_classed.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               loss = losses.BinaryCrossentropy(),
               metrics = 'accuracy'
               )
 
-history = full_model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
+history = final_sub_classed.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
 
 # # PLOT LOSS OVER TIME 
 
