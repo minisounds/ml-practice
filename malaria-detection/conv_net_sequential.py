@@ -3,6 +3,7 @@ import tensorflow_datasets as tfds
 import keras
 from keras import layers, losses, optimizers, models
 from tensorflow.keras.layers import Layer
+from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -72,8 +73,8 @@ class NeuraLearnDense(Layer):
         self.activation = activation
         
     def build(self, input_feature_shape): 
-        self.w = self.add_weight(shape = (input_feature_shape[-1], self.output_units), initializer = "random_normal", trainable = True)
-        self.b = self.add_weight(shape = (self.output_units, ), initializer = "random_normal", trainable = True)
+        self.w = self.add_weight(shape = (input_feature_shape[-1], self.output_units), initializer = "glorot_normal", trainable = True)
+        self.b = self.add_weight(shape = (self.output_units, ), initializer = "zeros", trainable = True)
         
     def call(self, input_features): 
         pre_output = tf.matmul(input_features, self.w) + self.b
@@ -110,9 +111,13 @@ model.summary()
 
 # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
 
+# DEFINE YOUR METRICS 
+
+metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(name = "precision"), Recall(name = "recall"), TruePositives(name = "tp"), TrueNegatives(name = "tn"), FalsePositives(name = "fp"), FalseNegatives(name = "fn")]
+
 model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               loss = losses.BinaryCrossentropy(),
-              metrics = 'accuracy'
+              metrics = metrics
               )
 
 history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1)
