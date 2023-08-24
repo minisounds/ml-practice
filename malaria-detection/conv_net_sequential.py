@@ -7,7 +7,7 @@ from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseN
 import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, roc_curve
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -158,14 +158,32 @@ print(cm)
 
 # Plot Confusion Matrix
 
-plt.figure(figsize=(8,8))
+# plt.figure(figsize=(8,8))
 
-sns.heatmap(cm, annot=True)
-plt.title("Confusion Matrix - {}".format(threshold))
-plt.ylabel('Actual')
-plt.xlabel('Predicted')
+# sns.heatmap(cm, annot=True)
+# plt.title("Confusion Matrix - {}".format(threshold))
+# plt.ylabel('Actual')
+# plt.xlabel('Predicted')
+
+# plt.show()
+
+# Plotting ROC Curve
+
+fp, tp, threshold = roc_curve(labels, predicted)
+plt.plot(fp, tp)
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+
+plt.grid()
+
+skip = 20
+
+for i in range(0, len(threshold), skip): 
+    plt.text(fp[i], tp[i], threshold[i])
 
 plt.show()
+
 # VISUALIZE YOUR DATA
 
 # for i, (image, label) in enumerate(test_dataset.take(9)): 
@@ -174,4 +192,3 @@ plt.show()
 #     plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
 #     plt.axis('off')
 #     plt.show()
-
