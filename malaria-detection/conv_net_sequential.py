@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
+from tensorflow.keras.callbacks import Callback
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -64,6 +65,11 @@ test_dataset = test_dataset.map(resize_rescale)
 # Shuffle and configure dataset settings 
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
+
+class LossCallback(Callback): 
+    def on_epoch_end(self, epochs, logs): 
+        print("/n For Epoch Number {} the Loss Function is {}".format(epochs+1, logs["loss"]))
+
 
 # Create a customizable dense layer for use in Sequential API model
 
@@ -122,7 +128,7 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               metrics = metrics
               )
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1)
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1, callbacks = [LossCallback()])
 
 # # # PLOT LOSS OVER TIME 
 
