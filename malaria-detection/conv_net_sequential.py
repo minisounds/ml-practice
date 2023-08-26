@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -66,9 +66,33 @@ test_dataset = test_dataset.map(resize_rescale)
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
 
+# Create a Custom Callback Class to Display Loss Vallues after each Epoch
 class LossCallback(Callback): 
     def on_epoch_end(self, epochs, logs): 
         print("/n For Epoch Number {} the Loss Function is {}".format(epochs+1, logs["loss"]))
+
+# Create a CSV Logger to Move Log Data into a CSV File after each Epoch
+
+csvlog = CSVLogger(
+    'logs.csv', separator=",", append = False
+)
+
+# Create an EarlyStopping Callback to Prevent Overfitting to Training Data
+
+early_stop = EarlyStopping(
+    monitor='val_loss', min_delta=0, patience=2, verbose=1, mode='auto', restore_best_weights=True, start_from_epoch=0
+)
+
+# Create a LearningRateScheduler Callback to Dynamically adjust Learning Rates by Epoch # 
+
+def scheduler(epochs, lr): 
+    if epochs < 2: 
+        return lr
+    else: 
+        # if epoch > 3, return learning rate * e^-0.1, which is 1/1.105, a value less than 1
+        return lr * tf.math.exp(-0.1)
+
+learning_scheduler = LearningRateScheduler(scheduler, verbose = 1)
 
 
 # Create a customizable dense layer for use in Sequential API model
@@ -128,17 +152,17 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               metrics = metrics
               )
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1, callbacks = [LossCallback()])
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [learning_scheduler])
 
-# # # PLOT LOSS OVER TIME 
+# PLOT LOSS OVER TIME 
 
-# # plt.plot(history.history['loss'])
-# # plt.plot(history.history['val_loss'])
-# # plt.title('MODEL LOSS')
-# # plt.ylabel('LOSS')
-# # plt.xlabel('EPOCHS')
-# # plt.legend(['train', "val_loss"])
-# # plt.show()
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('MODEL LOSS')
+plt.ylabel('LOSS')
+plt.xlabel('EPOCHS')
+plt.legend(['train', "val_loss"])
+plt.show()
 
 # MODEL EVALUATION AND TESTING 
 test_dataset = test_dataset.batch(1)
