@@ -2,8 +2,9 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 from keras import layers, losses, optimizers, models
-from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Layer, Dropout
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
+from tensorflow.keras.regularizers import L2
 import numpy as np
 import pandas as pd
 import sklearn
@@ -97,7 +98,7 @@ learning_scheduler = LearningRateScheduler(scheduler, verbose = 1)
 # Create a Reduced Learning Rate on Plateau Callback Function
 
 reduce_callback = ReduceLROnPlateau(
-    monitor='val_accuracy',
+    monitor='val_bin accuracy',
     factor=0.1,
     patience=2,
     verbose=1,
@@ -121,14 +122,15 @@ checkpoint_callback = ModelCheckpoint(
 # Create a customizable dense layer for use in Sequential API model
 
 class NeuraLearnDense(Layer): 
-    def __init__(self, output_units, activation): 
+    def __init__(self, output_units, activation, l2_rate): 
         super(NeuraLearnDense, self).__init__()
         
         self.output_units = output_units
         self.activation = activation
+        self.l2_rate = l2_rate
         
     def build(self, input_feature_shape): 
-        self.w = self.add_weight(shape = (input_feature_shape[-1], self.output_units), initializer = "glorot_normal", trainable = True)
+        self.w = self.add_weight(shape = (input_feature_shape[-1], self.output_units), initializer = "glorot_normal", regularizer = L2(self.l2_rate), trainable = True)
         self.b = self.add_weight(shape = (self.output_units, ), initializer = "zeros", trainable = True)
         
     def call(self, input_features): 
@@ -143,23 +145,26 @@ class NeuraLearnDense(Layer):
     
 
 # CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture using SEQUENTIAL API
+regularization_rate = 0.001
+
 model = tf.keras.Sequential([
     layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
     
-    layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu"),
+    layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
     layers.BatchNormalization(),
     layers.MaxPool2D(pool_size = (2,2), strides = 2),
     
-    layers.Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = "valid", activation = "relu"),
+    layers.Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
     layers.BatchNormalization(),
     layers.MaxPool2D(pool_size = (2,2), strides = 2),
     
     layers.Flatten(),
-    NeuraLearnDense(100, activation = "relu"),
+    NeuraLearnDense(100, activation = "relu", l2_rate = regularization_rate),
     layers.BatchNormalization(),
-    NeuraLearnDense(10, activation = "relu"),
+    Dropout(rate = 0.3), 
+    NeuraLearnDense(10, activation = "relu", l2_rate = regularization_rate),
     layers.BatchNormalization(),
-    NeuraLearnDense(1, activation="sigmoid")
+    NeuraLearnDense(1, activation="sigmoid", l2_rate = 0)
 ])
 model.summary()
 
@@ -176,7 +181,7 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               )
 
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [])
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [reduce_callback])
 
 # PLOT LOSS OVER TIME 
 
