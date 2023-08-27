@@ -44,13 +44,32 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-# VISUALIZE YOUR DATA (removing for quickness)
+# Begin Data Augmentation
+
+def visualize(original, augmented): 
+    plt.subplot(1, 2, 1)
+    plt.imshow(original)
+    
+    plt.subplot(1, 2, 2)
+    plt.imshow(augmented)
+    
+    plt.show()
+
+original_image, label = next(iter(train_dataset))
+
+augmented_image = tf.image.flip_left_right(original_image)
+
+visualize(original_image, augmented_image)
+
+
+
+# # VISUALIZE YOUR DATA (removing for quickness)
 # for i, (image, label) in enumerate(train_dataset.take(16)): 
 #     ax = plt.subplot(4, 4, i+1)
 #     plt.imshow(image)
 #     plt.title(dataset_info.features['label'].int2str(label))
 #     plt.axis('off')
-    # plt.show()
+#     plt.show()
     
 # DATA PREPROCESSING - NORMALIZE THE DATA AND STANDARDIZE FORMAT
 
