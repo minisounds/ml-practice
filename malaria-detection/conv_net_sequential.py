@@ -44,7 +44,7 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-# Begin Data Augmentation
+# Begin Data Augmentation - Visualize Changes
 
 def visualize(original, augmented): 
     plt.subplot(1, 2, 1)
@@ -77,8 +77,21 @@ IM_SIZE = 224
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255, label
 
+# DEFINE DATA AUGMENTATION FUNCTION 
+
+def augment(image, label): 
+    
+    image, label = resize_rescale(image, label)
+    
+    image = tf.image.rot90(image)
+    image = tf.image.adjust_saturation(image, saturation_factor = 0.3)
+    image = tf.image.flip_left_right(image)
+    
+    return image, label
+
+
 # Map the resize_rescale() function to each element in the dataset
-train_dataset = train_dataset.map(resize_rescale)
+train_dataset = train_dataset.map(augment)
 val_dataset = val_dataset.map(resize_rescale)
 test_dataset = test_dataset.map(resize_rescale)
 
