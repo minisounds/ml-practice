@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
-from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler
+from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler, ModelCheckpoint, ReduceLROnPlateau
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -94,6 +94,29 @@ def scheduler(epochs, lr):
 
 learning_scheduler = LearningRateScheduler(scheduler, verbose = 1)
 
+# Create a Reduced Learning Rate on Plateau Callback Function
+
+reduce_callback = ReduceLROnPlateau(
+    monitor='val_accuracy',
+    factor=0.1,
+    patience=2,
+    verbose=1,
+)
+
+# Create a Model Checkpointing Callback to Save Model Weights and Model Parameters After Best Validation Loss
+
+checkpoint_filepath = "model_checkpoint.h5"
+
+checkpoint_callback = ModelCheckpoint(
+    filepath = checkpoint_filepath,
+    monitor = 'val_loss',
+    verbose = 1,
+    save_best_only = True,
+    save_weights_only = True,
+    mode = 'auto',
+    save_freq = 'epoch',
+    initial_value_threshold = None,
+)
 
 # Create a customizable dense layer for use in Sequential API model
 
@@ -152,7 +175,8 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               metrics = metrics
               )
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [learning_scheduler])
+
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [])
 
 # PLOT LOSS OVER TIME 
 
