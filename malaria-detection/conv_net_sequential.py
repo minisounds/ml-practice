@@ -2,7 +2,8 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 from keras import layers, losses, optimizers, models
-from tensorflow.keras.layers import Layer, Dropout
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 from tensorflow.keras.regularizers import L2
 import numpy as np
@@ -44,26 +45,21 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-# Begin Data Augmentation - Visualize Changes
+# # Begin Data Augmentation - Visualize Changes (removing for quickness)
 
-def visualize(original, augmented): 
-    plt.subplot(1, 2, 1)
-    plt.imshow(original)
-    
-    plt.subplot(1, 2, 2)
-    plt.imshow(augmented)
-    
-    plt.show()
+# def visualize(original, augmented): 
+#     plt.subplot(1, 2, 1)
+#     plt.imshow(original)
+#     plt.subplot(1, 2, 2)
+#     plt.imshow(augmented)
+#     plt.show()
 
-original_image, label = next(iter(train_dataset))
-
-augmented_image = tf.image.flip_left_right(original_image)
-
-visualize(original_image, augmented_image)
-
-
+# original_image, label = next(iter(train_dataset))
+# augmented_image = tf.image.flip_left_right(original_image)
+# visualize(original_image, augmented_image)
 
 # # VISUALIZE YOUR DATA (removing for quickness)
+
 # for i, (image, label) in enumerate(train_dataset.take(16)): 
 #     ax = plt.subplot(4, 4, i+1)
 #     plt.imshow(image)
@@ -74,30 +70,46 @@ visualize(original_image, augmented_image)
 # DATA PREPROCESSING - NORMALIZE THE DATA AND STANDARDIZE FORMAT
 
 IM_SIZE = 224
+
+resize_rescale_layer = Sequential([
+    Resizing(height = IM_SIZE, width = IM_SIZE),
+    Rescaling(scale=1./255),
+])
+
+# Note: replaced resize_rescale() function with resize_rescale_layer for simplicity
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255, label
 
+
 # DEFINE DATA AUGMENTATION FUNCTION 
 
-def augment(image, label): 
+# def augment(image, label): 
     
-    image, label = resize_rescale(image, label)
+#     image, label = resize_rescale(image, label)
     
-    image = tf.image.rot90(image)
-    image = tf.image.adjust_saturation(image, saturation_factor = 0.3)
-    image = tf.image.flip_left_right(image)
+#     image = tf.image.rot90(image)
+#     image = tf.image.flip_left_right(image)
     
-    return image, label
+#     return image, label
+
+# Create Data Augmentation Model
+augment_layers = Sequential([
+    tf.keras.layers.RandomRotation(factor = (0.25, 0.2501)),
+    tf.keras.layers.RandomFlip(mode = "horizontal")
+])
+
+def augment_layer(image, label): 
+    return augment_layers(resize_rescale_layer(image), training = True), label
+
 
 
 # Map the resize_rescale() function to each element in the dataset
-train_dataset = train_dataset.map(augment)
-val_dataset = val_dataset.map(resize_rescale)
-test_dataset = test_dataset.map(resize_rescale)
+val_dataset = val_dataset.map(resize_rescale_layer)
+test_dataset = test_dataset.map(resize_rescale_layer)
 
 # Shuffle and configure dataset settings 
-train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
-val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(32).prefetch(tf.data.AUTOTUNE)
+train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(augment_layer).batch(32).prefetch(tf.data.AUTOTUNE)
+val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale_layer).batch(32).prefetch(tf.data.AUTOTUNE)
 
 # Create a Custom Callback Class to Display Loss Vallues after each Epoch
 class LossCallback(Callback): 
