@@ -15,12 +15,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
 
-# FUNCTIONS
-def parasite_or_not(x): 
-    if(x < 0.5): 
-        return str('P')
-    else: 
-        return str('U')
+
 
 # LOAD DATASET 
 dataset, dataset_info = tfds.load('malaria', with_info=True, as_supervised=True, shuffle_files=True, split=['train'])
@@ -71,7 +66,7 @@ train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_R
 
 IM_SIZE = 224
 
-resize_rescale_layer = Sequential([
+resize_rescale_layers = Sequential([
     Resizing(height = IM_SIZE, width = IM_SIZE),
     Rescaling(scale=1./255),
 ])
@@ -84,12 +79,9 @@ def resize_rescale(image, label):
 # DEFINE DATA AUGMENTATION FUNCTION 
 
 # def augment(image, label): 
-    
 #     image, label = resize_rescale(image, label)
-    
 #     image = tf.image.rot90(image)
 #     image = tf.image.flip_left_right(image)
-    
 #     return image, label
 
 # Create Data Augmentation Model
@@ -99,17 +91,11 @@ augment_layers = Sequential([
 ])
 
 def augment_layer(image, label): 
-    return augment_layers(resize_rescale_layer(image), training = True), label
-
-
-
-# Map the resize_rescale() function to each element in the dataset
-val_dataset = val_dataset.map(resize_rescale_layer)
-test_dataset = test_dataset.map(resize_rescale_layer)
+    return augment_layers(resize_rescale_layers(image), training = True), label
 
 # Shuffle and configure dataset settings 
-train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(augment_layer).batch(32).prefetch(tf.data.AUTOTUNE)
-val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale_layer).batch(32).prefetch(tf.data.AUTOTUNE)
+train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(1).prefetch(tf.data.AUTOTUNE)
+val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(1).prefetch(tf.data.AUTOTUNE)
 
 # Create a Custom Callback Class to Display Loss Vallues after each Epoch
 class LossCallback(Callback): 
@@ -192,7 +178,10 @@ class NeuraLearnDense(Layer):
 regularization_rate = 0.001
 
 model = tf.keras.Sequential([
-    layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
+    layers.InputLayer(input_shape = (None, None, 3)),
+    
+    resize_rescale_layers,
+    augment_layers,
     
     layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
     layers.BatchNormalization(),
@@ -221,7 +210,8 @@ metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(n
 
 model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               loss = losses.BinaryCrossentropy(),
-              metrics = metrics
+              metrics = metrics,
+              run_eagerly = False
               )
 
 
@@ -237,29 +227,38 @@ plt.xlabel('EPOCHS')
 plt.legend(['train', "val_loss"])
 plt.show()
 
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('MODEL ACCURACY')
+plt.ylabel('ACCURACY')
+plt.xlabel('EPOCHS')
+plt.legend(['train', "val_accuracy"])
+plt.show()
+
+
 # MODEL EVALUATION AND TESTING 
+
 test_dataset = test_dataset.batch(1)
 model.evaluate(test_dataset)
 
-# VISUALIZING CONFUSION MATRIX 
+# # VISUALIZING CONFUSION MATRIX 
 
-labels = []
-inp = []
+# labels = []
+# inp = []
 
-for x,y in test_dataset.as_numpy_iterator(): 
-    labels.append(y)
-    inp.append(x)
+# for x,y in test_dataset.as_numpy_iterator(): 
+#     labels.append(y)
+#     inp.append(x)
  
-inp = np.array(inp)
-npy_inputs = np.squeeze(inp, axis = 1)
+# inp = np.array(inp)
+# npy_inputs = np.squeeze(inp, axis = 1)
 
-predicted = model.predict(npy_inputs)
+# predicted = model.predict(npy_inputs)
 
-threshold = 0.5
-cm = confusion_matrix(labels, predicted > threshold)
-print(cm)
+# threshold = 0.5
+# cm = confusion_matrix(labels, predicted > threshold)
 
-# Plot Confusion Matrix
+# # Plot Confusion Matrix
 
 # plt.figure(figsize=(8,8))
 
@@ -270,25 +269,31 @@ print(cm)
 
 # plt.show()
 
-# Plotting ROC Curve
+# # Plotting ROC Curve
 
-fp, tp, threshold = roc_curve(labels, predicted)
-plt.plot(fp, tp)
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC Curve")
+# fp, tp, threshold = roc_curve(labels, predicted)
+# plt.plot(fp, tp)
+# plt.xlabel("False Positive Rate")
+# plt.ylabel("True Positive Rate")
+# plt.title("ROC Curve")
 
-plt.grid()
+# plt.grid()
 
-skip = 20
+# skip = 20
 
-for i in range(0, len(threshold), skip): 
-    plt.text(fp[i], tp[i], threshold[i])
+# for i in range(0, len(threshold), skip): 
+#     plt.text(fp[i], tp[i], threshold[i])
 
-plt.show()
+# plt.show()
 
-# VISUALIZE YOUR DATA
+# # VISUALIZE YOUR DATA
 
+# def parasite_or_not(x): 
+#     if(x < 0.5): 
+#         return str('P')
+#     else: 
+#         return str('U')
+    
 # for i, (image, label) in enumerate(test_dataset.take(9)): 
 #     ax = plt.subplot(3, 3, i+1)
 #     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
