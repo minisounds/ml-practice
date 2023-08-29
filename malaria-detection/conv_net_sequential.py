@@ -71,22 +71,33 @@ resize_rescale_layers = Sequential([
     Rescaling(scale=1./255),
 ])
 
-# Note: replaced resize_rescale() function with resize_rescale_layer for simplicity
+# DEFINE RESIZE AND RESCALE IMAGE FUNCTION FOR DATA PREPROCESSING & BATCHING IMAGES SO THEIR TENSORSHAPES MATCH
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255, label
 
 
-# DEFINE DATA AUGMENTATION FUNCTION 
+# DEFINE DATA AUGMENTATION FUNCTION (using this for data preprocessing for the train dataset)
 
-# def augment(image, label): 
-#     image, label = resize_rescale(image, label)
-#     image = tf.image.rot90(image)
-#     image = tf.image.flip_left_right(image)
-#     return image, label
+def augment(image, label): 
+    image, label = resize_rescale(image, label)
+    image = tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
+    image = tf.image.stateless_random_flip_left_right(image, seed = (1,2))
+    return image, label
 
-# Create Data Augmentation Model
+# Create Custom Rotation Layer for Data Augmentation Model (not going to use due to batch size)
+
+class RotNinety(Layer): 
+    def __init__(self): 
+        super().__init__()
+    
+    def call(self, image): 
+        return tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
+    
+
+# Create Data Augmentation Sequential Model (not going to use due to batch size) 
+
 augment_layers = Sequential([
-    tf.keras.layers.RandomRotation(factor = (0.25, 0.2501)),
+    RotNinety(),
     tf.keras.layers.RandomFlip(mode = "horizontal")
 ])
 
@@ -94,10 +105,11 @@ def augment_layer(image, label):
     return augment_layers(resize_rescale_layers(image), training = True), label
 
 # Shuffle and configure dataset settings 
-train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(1).prefetch(tf.data.AUTOTUNE)
-val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).batch(1).prefetch(tf.data.AUTOTUNE)
 
-# Create a Custom Callback Class to Display Loss Vallues after each Epoch
+train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(augment).batch(32).prefetch(tf.data.AUTOTUNE)
+val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale).batch(32).prefetch(tf.data.AUTOTUNE)
+
+# Create a Custom Callback Class to Display Loss Values after each Epoch
 class LossCallback(Callback): 
     def on_epoch_end(self, epochs, logs): 
         print("/n For Epoch Number {} the Loss Function is {}".format(epochs+1, logs["loss"]))
@@ -178,10 +190,7 @@ class NeuraLearnDense(Layer):
 regularization_rate = 0.001
 
 model = tf.keras.Sequential([
-    layers.InputLayer(input_shape = (None, None, 3)),
-    
-    resize_rescale_layers,
-    augment_layers,
+    layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
     
     layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
     layers.BatchNormalization(),
