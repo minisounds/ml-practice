@@ -42,27 +42,7 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-# # Begin Data Augmentation - Visualize Changes (removing for quickness)
-
-# def visualize(original, augmented): 
-#     plt.subplot(1, 2, 1)
-#     plt.imshow(original)
-#     plt.subplot(1, 2, 2)
-#     plt.imshow(augmented)
-#     plt.show()
-
-# original_image, label = next(iter(train_dataset))
-# augmented_image = tf.image.flip_left_right(original_image)
-# visualize(original_image, augmented_image)
-
-# # VISUALIZE YOUR DATA (removing for quickness)
-
-# for i, (image, label) in enumerate(train_dataset.take(16)): 
-#     ax = plt.subplot(4, 4, i+1)
-#     plt.imshow(image)
-#     plt.title(dataset_info.features['label'].int2str(label))
-#     plt.axis('off')
-#     plt.show()
+# DATA PREPROCESSING AND AUGMENTATION
     
 # DATA PREPROCESSING - NORMALIZE THE DATA AND STANDARDIZE FORMAT
 
@@ -93,11 +73,22 @@ def process_data(image, label):
     aug_img = tf.numpy_function(func = aug_albument, inp = [image], Tout = tf.float32) # numpy_function converts a python function into a tensor operations
     return aug_img, label
 
-
 # Shuffle and configure dataset settings 
 
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(process_data).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale).batch(32).prefetch(tf.data.AUTOTUNE)
+
+# Visualize transforms() function
+
+plt.figure(figsize=(15,15))
+
+im, _ = next(iter(train_dataset))
+
+for i in range(1, 32): 
+    plt.subplot(8,4,i)
+    plt.imshow(im[i])
+
+# CALLBACKS 
 
 # Create a Custom Callback Class to Display Loss Values after each Epoch
 class LossCallback(Callback): 
