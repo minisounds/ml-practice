@@ -1,11 +1,13 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
+import cv2
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 from tensorflow.keras.regularizers import L2
+import tensorflow_probability as tfp
 import numpy as np
 import pandas as pd
 import sklearn
@@ -16,14 +18,13 @@ import matplotlib.pyplot as plt
 from tensorflow import data
 
 
-
 # LOAD DATASET 
 dataset, dataset_info = tfds.load('malaria', with_info=True, as_supervised=True, shuffle_files=True, split=['train'])
 
 # Split Data into Training, Validation, and Testing Batches
-TRAIN_RATIO = 0.6
-VAL_RATIO = 0.2
-TEST_RATIO = 0.2
+TRAIN_RATIO = 0.8
+VAL_RATIO = 0.1
+TEST_RATIO = 0.1
 
 def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO): 
     LENGTH = len(dataset)
