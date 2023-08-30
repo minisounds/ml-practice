@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 import cv2
+import albumentations as A
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
@@ -67,47 +68,35 @@ train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_R
 
 IM_SIZE = 224
 
-resize_rescale_layers = Sequential([
-    Resizing(height = IM_SIZE, width = IM_SIZE),
-    Rescaling(scale=1./255),
-])
-
 # DEFINE RESIZE AND RESCALE IMAGE FUNCTION FOR DATA PREPROCESSING & BATCHING IMAGES SO THEIR TENSORSHAPES MATCH
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255, label
 
+# ALBUMENTATION DATA AUGMENTATION 
 
-# DEFINE DATA AUGMENTATION FUNCTION (using this for data preprocessing for the train dataset)
-
-def augment(image, label): 
-    image, label = resize_rescale(image, label)
-    image = tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
-    image = tf.image.stateless_random_flip_left_right(image, seed = (1,2))
-    return image, label
-
-# Create Custom Rotation Layer for Data Augmentation Model (not going to use due to batch size)
-
-class RotNinety(Layer): 
-    def __init__(self): 
-        super().__init__()
-    
-    def call(self, image): 
-        return tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
-    
-
-# Create Data Augmentation Sequential Model (not going to use due to batch size) 
-
-augment_layers = Sequential([
-    RotNinety(),
-    tf.keras.layers.RandomFlip(mode = "horizontal")
+transforms = A.Compose([
+    A.Resize(IM_SIZE, IM_SIZE),
+    A.HorizontalFlip(),
+    A.VerticalFlip(),
+    A.RandomRotate90(),
+    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, brightness_by_max=True, always_apply=False, p=0.5),
 ])
 
-def augment_layer(image, label): 
-    return augment_layers(resize_rescale_layers(image), training = True), label
+def aug_albument(image):
+    data = {"image": image} # create a dictionary with a single key-value pair
+    image = transforms(**data) # **data unpacks dictionary data's key-value pairs to pass into transforms(). Dictionaries are commonly used in ALbumentations
+    image = image["image"] # upon successful completion of transforms, the transformed image is extracted from the image from the dictionary using the key "image" and assigned back to the variable image
+    image = tf.cast(image/255., tf.float32) # scales pixel values from [0,255] to the range [0,1]
+    return image
+
+def process_data(image, label): 
+    aug_img = tf.numpy_function(func = aug_albument, inp = [image], Tout = tf.float32) # numpy_function converts a python function into a tensor operations
+    return aug_img, label
+
 
 # Shuffle and configure dataset settings 
 
-train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(augment).batch(32).prefetch(tf.data.AUTOTUNE)
+train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(process_data).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale).batch(32).prefetch(tf.data.AUTOTUNE)
 
 # Create a Custom Callback Class to Display Loss Values after each Epoch

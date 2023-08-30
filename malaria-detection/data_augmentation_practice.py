@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 import cv2
+import albumentations as A
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
@@ -49,14 +50,12 @@ IM_SIZE = 224
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255, label
 
+# resize_rescale() function in Sequential Model Form
+resize_rescale_layers = Sequential([
+    Resizing(height = IM_SIZE, width = IM_SIZE),
+    Rescaling(scale=1./255),
+])
 
-# DEFINE DATA AUGMENTATION FUNCTION (using this for data preprocessing for the train dataset)
-
-def augment(image, label): 
-    image, label = resize_rescale(image, label)
-    image = tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
-    image = tf.image.stateless_random_flip_left_right(image, seed = (1,2))
-    return image, label
 
 # MIX-UP DATA AUGMENTATION
 
@@ -77,6 +76,33 @@ plt.title("Mixup Data Augmentation Following a Beta Probability Distribution")
 plt.imshow(image/255)
 plt.show()
 
+# DEFINE DATA AUGMENTATION FUNCTION (using this for data preprocessing for the train dataset)
+
+def augment(image, label): 
+    image, label = resize_rescale(image, label)
+    image = tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
+    image = tf.image.stateless_random_flip_left_right(image, seed = (1,2))
+    return image, label
+
+# Create Custom Rotation Layer for Data Augmentation Model (not going to use due to batch size)
+
+class RotNinety(Layer): 
+    def __init__(self): 
+        super().__init__()
+    
+    def call(self, image): 
+        return tf.image.rot90(image, k = tf.random.uniform(shape=[], minval = 0, maxval = 2, dtype=tf.int32))
+    
+
+# Create Data Augmentation Sequential Model (not going to use due to batch size) 
+
+augment_layers = Sequential([
+    RotNinety(),
+    tf.keras.layers.RandomFlip(mode = "horizontal")
+])
+
+def augment_layer(image, label): 
+    return augment_layers(resize_rescale_layers(image), training = True), label
 
 
 
