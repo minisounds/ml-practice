@@ -35,7 +35,7 @@ def splits(dataset, TRAIN_RATIO, VAL_RATIO, TEST_RATIO):
     val_dataset = dataset.skip(int(TRAIN_RATIO * LENGTH))
     val_dataset = val_dataset.take(int(VAL_RATIO * LENGTH))
     
-    test_dataset = dataset.skip(int((TEST_RATIO + TRAIN_RATIO+0.18) * LENGTH))
+    test_dataset = dataset.skip(int((TEST_RATIO + TRAIN_RATIO) * LENGTH))
     test_dataset = test_dataset.take(int(TEST_RATIO * LENGTH))
     
     return train_dataset, val_dataset, test_dataset
@@ -77,7 +77,7 @@ def process_data(image, label):
 
 train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(process_data).batch(32).prefetch(tf.data.AUTOTUNE)
 val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration = True).map(resize_rescale).batch(32).prefetch(tf.data.AUTOTUNE)
-
+test_dataset = test_dataset.map(resize_rescale)
 # Visualize transforms() function
 
 plt.figure(figsize=(15,15))
@@ -215,34 +215,51 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
 OPTIMIZER = optimizers.Adam(learning_rate=0.01)
 METRIC = BinaryAccuracy()
 METRIC_VAL = BinaryAccuracy()
-EPOCHS = 5
+EPOCHS = 2
+tf.config.run_functions_eagerly(False)
 
-for epoch in range(EPOCHS): 
-    print("Training Begins for Epoch number {}".format(epoch))
-    for step, (x_batch, y_batch) in enumerate(train_dataset): # enumerate train_dataset to help keep track of how many steps we've gotten through
+@tf.function #use graph mode to compute this for faster training times 
+def training_block(x_batch, y_batch): 
+    with tf.GradientTape() as recorder: # record the gradients in this tape recorder (to make partial derivative)
+        y_pred = model(x_batch, training = True) 
+        loss = custom_bce(y_batch, y_pred) # use custom loss function (binary cross entropy) to calc loss
         
-        with tf.GradientTape() as recorder: # record the gradients in this tape recorder (to make partial derivative)
-            y_pred = model(x_batch, training = True) 
-            loss = custom_bce(y_batch, y_pred) # use custom loss function (binary cross entropy) to calc loss
+    partial_derivatives = recorder.gradient(loss, model.trainable_weights) # uses recorded losses to calculate the partial derivative between the loss and each of the model's trainable weights
+    OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
+    # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
         
-        partial_derivatives = recorder.gradient(loss, model.trainable_weights) # uses recorded losses to calculate the partial derivative between the loss and each of the model's trainable weights
-        OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
-        # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
-        
-        METRIC.update_state(y_batch, y_pred) # takes in y_batch as a true value, y_pred as predicted variable. update_state() adds to the counter of total correct predictions avs total predictions, used to calculate the final accuracy of the model
-        
-    print(loss)        
-    print("The accuracy is: ", METRIC.result())
-    METRIC.reset_states()
+    METRIC.update_state(y_batch, y_pred) # takes in y_batch as a true value, y_pred as predicted variable. update_state() adds to the counter of total correct predictions avs total predictions, used to calculate the final accuracy of the model
+
+    return loss
+
+@tf.function #convert to graph mode
+def val_block(x_batch_val, y_batch_val):
+    y_pred_val = model(x_batch_val, training = False) # important: set training = False
+    loss_val = custom_bce(y_batch_val, y_pred_val)
+    METRIC_VAL.update_state(y_batch_val, y_pred_val) 
     
-    for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
-        y_pred_val = model(x_batch_val, training = False) # important: set training = False
-        loss_val = custom_bce(y_batch_val, y_pred_val)
-        METRIC_VAL.update_state(y_batch_val, y_pred_val) 
+    return loss_val
+
+# RUN TRAINING (MODEL.FIT METHOD)
+def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_dataset, EPOCHS, OPTIMIZER):
+    for epoch in range(EPOCHS): 
+        print("Training Begins for Epoch number {}".format(epoch+1))
+        for (x_batch, y_batch) in train_dataset: # enumerate train_dataset to help keep track of how many steps we've gotten through
+            loss = training_block(x_batch, y_batch)
+                
+        print("The Loss is: ", loss.numpy())        
+        print("The accuracy is: ", METRIC.result().numpy())
+        METRIC.reset_states()
         
-    print("Validation loss", loss)
-    print ("The Validation Accuracy is: ", METRIC_VAL.result())
-    
+        for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
+            loss_val = val_block(x_batch_val, y_batch_val)
+            
+        print("Validation loss", loss_val.numpy())
+        print ("The Validation Accuracy is: ", METRIC_VAL.result().numpy())
+        METRIC_VAL.reset_states()
+    print("Training Complete!")
+
+neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
 
     
     
