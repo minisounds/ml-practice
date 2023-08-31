@@ -213,6 +213,8 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
 # history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [reduce_callback])
 
 OPTIMIZER = optimizers.Adam(learning_rate=0.01)
+METRIC = BinaryAccuracy()
+METRIC_VAL = BinaryAccuracy()
 EPOCHS = 5
 
 for epoch in range(EPOCHS): 
@@ -227,9 +229,23 @@ for epoch in range(EPOCHS):
         OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
         # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
         
-        if (step%100 == 0): 
-            print(loss)
+        METRIC.update_state(y_batch, y_pred) # takes in y_batch as a true value, y_pred as predicted variable. update_state() adds to the counter of total correct predictions avs total predictions, used to calculate the final accuracy of the model
+        
+    print(loss)        
+    print("The accuracy is: ", METRIC.result())
+    METRIC.reset_states()
+    
+    for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
+        y_pred_val = model(x_batch_val, training = False) # important: set training = False
+        loss_val = custom_bce(y_batch_val, y_pred_val)
+        METRIC_VAL.update_state(y_batch_val, y_pred_val) 
+        
+    print("Validation loss", loss)
+    print ("The Validation Accuracy is: ", METRIC_VAL.result())
+    
 
+    
+    
 
 # # PLOT LOSS OVER TIME 
 
