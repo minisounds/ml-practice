@@ -166,7 +166,12 @@ class NeuraLearnDense(Layer):
         else: 
             return pre_output
     
+# Create Custom Loss Function 
 
+def custom_bce(y_true, y_pred): 
+    bce = losses.BinaryCrossentropy()
+    return bce(y_true, y_pred)
+        
 # CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture using SEQUENTIAL API
 regularization_rate = 0.001
 
@@ -199,31 +204,50 @@ model.summary()
 metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(name = "precision"), Recall(name = "recall"), TruePositives(name = "tp"), TrueNegatives(name = "tn"), FalsePositives(name = "fp"), FalseNegatives(name = "fn")]
 
 model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
-              loss = losses.BinaryCrossentropy(),
+              loss = custom_bce,
               metrics = metrics,
               run_eagerly = False
               )
 
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [reduce_callback])
+# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [reduce_callback])
 
-# PLOT LOSS OVER TIME 
+OPTIMIZER = optimizers.Adam(learning_rate=0.01)
+EPOCHS = 5
 
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('MODEL LOSS')
-plt.ylabel('LOSS')
-plt.xlabel('EPOCHS')
-plt.legend(['train', "val_loss"])
-plt.show()
+for epoch in range(EPOCHS): 
+    print("Training Begins for Epoch number {}".format(epoch))
+    for step, (x_batch, y_batch) in enumerate(train_dataset): # enumerate train_dataset to help keep track of how many steps we've gotten through
+        
+        with tf.GradientTape() as recorder: # record the gradients in this tape recorder (to make partial derivative)
+            y_pred = model(x_batch, training = True) 
+            loss = custom_bce(y_batch, y_pred) # use custom loss function (binary cross entropy) to calc loss
+        
+        partial_derivatives = recorder.gradient(loss, model.trainable_weights) # uses recorded losses to calculate the partial derivative between the loss and each of the model's trainable weights
+        OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
+        # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
+        
+        if (step%100 == 0): 
+            print(loss)
 
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('MODEL ACCURACY')
-plt.ylabel('ACCURACY')
-plt.xlabel('EPOCHS')
-plt.legend(['train', "val_accuracy"])
-plt.show()
+
+# # PLOT LOSS OVER TIME 
+
+# plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+# plt.title('MODEL LOSS')
+# plt.ylabel('LOSS')
+# plt.xlabel('EPOCHS')
+# plt.legend(['train', "val_loss"])
+# plt.show()
+
+# plt.plot(history.history['accuracy'])
+# plt.plot(history.history['val_accuracy'])
+# plt.title('MODEL ACCURACY')
+# plt.ylabel('ACCURACY')
+# plt.xlabel('EPOCHS')
+# plt.legend(['train', "val_accuracy"])
+# plt.show()
 
 
 # MODEL EVALUATION AND TESTING 
