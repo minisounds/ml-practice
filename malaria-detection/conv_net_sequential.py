@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
-from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler, ModelCheckpoint, ReduceLROnPlateau, TensorBoard
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -142,6 +142,10 @@ checkpoint_callback = ModelCheckpoint(
     initial_value_threshold = None,
 )
 
+# Create a Tensorboard Callback that creates a web interface displaying metrics w/o having to use matplotlib code
+
+tensorboard_callback = TensorBoard(log_dir="./tensorboard")
+
 # Create a customizable dense layer for use in Sequential API model
 
 class NeuraLearnDense(Layer): 
@@ -210,8 +214,12 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               )
 
 
-# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 5, verbose = 1, callbacks = [reduce_callback])
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 2, verbose = 1, callbacks = [tensorboard_callback])
 
+
+# CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
+
+# SET CONSTANTS 
 OPTIMIZER = optimizers.Adam(learning_rate=0.01)
 METRIC = BinaryAccuracy()
 METRIC_VAL = BinaryAccuracy()
@@ -240,7 +248,7 @@ def val_block(x_batch_val, y_batch_val):
     
     return loss_val
 
-# RUN TRAINING (MODEL.FIT METHOD)
+# CREATE TRAINING FUNCTION
 def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_dataset, EPOCHS, OPTIMIZER):
     for epoch in range(EPOCHS): 
         print("Training Begins for Epoch number {}".format(epoch+1))
@@ -259,7 +267,8 @@ def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_data
         METRIC_VAL.reset_states()
     print("Training Complete!")
 
-neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
+# RUN THE TRAINING FUNCTION HERE (Commented out to use tensorboard)
+# neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
 
     
     
