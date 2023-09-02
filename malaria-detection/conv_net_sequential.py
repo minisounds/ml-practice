@@ -205,8 +205,7 @@ model = tf.keras.Sequential([
     layers.BatchNormalization(),
     NeuraLearnDense(1, activation="sigmoid", l2_rate = 0)
 ])
-model.summary()
-
+# model.summary()
 
 # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
 
@@ -220,11 +219,18 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               run_eagerly = False
               )
 
-
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [learning_scheduler_callback, tensorboard_callback])
+# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [learning_scheduler_callback, tensorboard_callback])
 
 
 # CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
+
+# PREPARE CUSTOM TRAINING LOOP TENSORBOARD LOGS
+CUSTOM_METRIC_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/metrics'
+CUSTOM_TRAIN_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/train'
+CUSTOM_VAL_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/validation' # Have to Create a Writer to Log Validation Data, as well. Model.fit() normally handles this automatically 
+
+custom_train_writer = tf.summary.create_file_writer(CUSTOM_TRAIN_DIR)
+custom_validation_writer = tf.summary.create_file_writer(CUSTOM_VAL_DIR) # Create two validation writers to log changes to different files 
 
 # SET CONSTANTS 
 OPTIMIZER = optimizers.Adam(learning_rate=0.01)
@@ -264,6 +270,10 @@ def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_data
                 
         print("The Loss is: ", loss.numpy())        
         print("The accuracy is: ", METRIC.result().numpy())
+        with custom_train_writer.as_default(): # Log Training Loss and Accuracy to the Training Writer File 
+            tf.summary.scalar('Training Loss', data = loss, step = epoch)
+        with custom_train_writer.as_default():
+            tf.summary.scalar('Training Accuracy', data = METRIC.result(), step = epoch)
         METRIC.reset_states()
         
         for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
@@ -271,11 +281,16 @@ def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_data
             
         print("Validation loss", loss_val.numpy())
         print ("The Validation Accuracy is: ", METRIC_VAL.result().numpy())
+        with custom_validation_writer.as_default(): # Log Validation Loss and Accuracy to the Validation Writer File
+            tf.summary.scalar('Validation Loss', data = loss_val, step = epoch)
+        with custom_validation_writer.as_default():
+            tf.summary.scalar('Validation Accuracy', data = METRIC_VAL.result(), step = epoch)
         METRIC_VAL.reset_states()
+        
     print("Training Complete!")
 
 # RUN THE TRAINING FUNCTION HERE (Commented out to use tensorboard)
-# neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
+neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
 
     
     
