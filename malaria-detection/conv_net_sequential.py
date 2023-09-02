@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import keras
 import cv2
+import datetime
 import albumentations as A
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
@@ -90,6 +91,14 @@ for i in range(1, 32):
 
 # CALLBACKS 
 
+# Create a Tensorboard Callback that creates a web interface displaying metrics w/o having to use matplotlib code
+CURRENT_TIME = datetime.datetime.now().strftime('%d%m%y - %h%m%s')
+METRIC_DIR = './tensorboard_logs/' + CURRENT_TIME + '/metrics' # create a folder in the tensorboard data folder
+LOG_DIR = './tensorboard_logs/' + CURRENT_TIME
+
+train_writer = tf.summary.create_file_writer(METRIC_DIR) # create something to write a file to tensorboard
+tensorboard_callback = TensorBoard(log_dir=LOG_DIR) # log everything in date folder within tensorboard folder
+
 # Create a Custom Callback Class to Display Loss Values after each Epoch
 class LossCallback(Callback): 
     def on_epoch_end(self, epochs, logs): 
@@ -109,14 +118,16 @@ early_stop = EarlyStopping(
 
 # Create a LearningRateScheduler Callback to Dynamically adjust Learning Rates by Epoch # 
 
-def scheduler(epochs, lr): 
-    if epochs < 2: 
-        return lr
-    else: 
+def scheduler(epoch, lr): # this is the FUNCTION, not the CALLBACK 
+    learning_rate = lr
+    if epoch >= 1: 
         # if epoch > 3, return learning rate * e^-0.1, which is 1/1.105, a value less than 1
-        return lr * tf.math.exp(-0.1)
+        learning_rate = lr * tf.math.exp(-0.1)
+    with train_writer.as_default():
+        tf.summary.scalar('Learning Rate', data = learning_rate, step = epoch)
+    return learning_rate
 
-learning_scheduler = LearningRateScheduler(scheduler, verbose = 1)
+learning_scheduler_callback = LearningRateScheduler(scheduler, verbose = 1)
 
 # Create a Reduced Learning Rate on Plateau Callback Function
 
@@ -141,10 +152,6 @@ checkpoint_callback = ModelCheckpoint(
     save_freq = 'epoch',
     initial_value_threshold = None,
 )
-
-# Create a Tensorboard Callback that creates a web interface displaying metrics w/o having to use matplotlib code
-
-tensorboard_callback = TensorBoard(log_dir="./tensorboard")
 
 # Create a customizable dense layer for use in Sequential API model
 
@@ -214,7 +221,7 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               )
 
 
-history = model.fit(train_dataset, validation_data = val_dataset, epochs = 2, verbose = 1, callbacks = [tensorboard_callback])
+history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [learning_scheduler_callback, tensorboard_callback])
 
 
 # CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
