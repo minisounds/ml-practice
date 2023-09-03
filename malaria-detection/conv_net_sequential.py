@@ -1,15 +1,16 @@
 import tensorflow as tf
-import tensorflow_datasets as tfds
+import tensorflow_datasets as tfds # for creating tensorflow dataset objects 
 import keras
-import cv2
-import datetime
-import albumentations as A
+import cv2 # computer vision 2 for visualizing and working with images 
+import datetime # for tensorboard logging custom times 
+import io # for saving images to tensorboard 
+import albumentations as A # for data augmentation
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 from tensorflow.keras.regularizers import L2
-import tensorflow_probability as tfp
+import tensorflow_probability as tfp 
 import numpy as np
 import pandas as pd
 import sklearn
@@ -24,7 +25,7 @@ from tensorflow import data
 dataset, dataset_info = tfds.load('malaria', with_info=True, as_supervised=True, shuffle_files=True, split=['train'])
 
 # Split Data into Training, Validation, and Testing Batches
-TRAIN_RATIO = 0.8
+TRAIN_RATIO = 0.1
 VAL_RATIO = 0.1
 TEST_RATIO = 0.1
 
@@ -103,6 +104,53 @@ tensorboard_callback = TensorBoard(log_dir=LOG_DIR) # log everything in date fol
 class LossCallback(Callback): 
     def on_epoch_end(self, epochs, logs): 
         print("/n For Epoch Number {} the Loss Function is {}".format(epochs+1, logs["loss"]))
+
+
+
+
+class LogImagesCallback(Callback):
+    def on_epoch_end(self, epoch, logs): 
+        # VISUALIZING CONFUSION MATRIX 
+        labels = [] # create list of labels (ground truths) to store from dataset
+        inp = [] # intake the inputs from the dataset 
+
+        for x,y in test_dataset.as_numpy_iterator(): # fill up the lists with data
+            labels.append(y) 
+            inp.append(x)
+
+        inp = tf.expand_dims(inp, axis = 0)  #returns shape (1, 2757, 244, 244, 3)
+        inp = inp[0,...] # removes the first dimension to return shape (2757, 244, 244, 3)
+        print(inp.shape)
+        predicted = model.predict(inp) # feeds in preprocessed input list into the model
+        # predicted = predicted[:,0]
+        # print(predicted[:,0].shape)
+
+        threshold = 0.5
+
+        cm = confusion_matrix(labels, predicted > threshold) # plugs in confusion_matrix(y_true, y_pred) where y_pred is the list with 1s and 0s for if the predicted value was > 0.5 or not
+
+        # Plot Confusion Matrix
+
+        plt.figure(figsize=(8,8))
+
+        sns.heatmap(cm, annot=True)
+        plt.title("Confusion Matrix - {}".format(threshold))
+        plt.ylabel('Actual')
+        plt.xlabel('Predicted')
+        plt.axis('off')
+        
+        buffer = io.BytesIO() 
+        plt.savefig(buffer, format = 'png')
+        
+        image = tf.image.decode_png(buffer.getvalue(), channels = 3)
+        image = tf.expand_dims(image, axis = 0)
+        
+        IMAGE_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/images'
+        image_writer = tf.summary.create_file_writer(IMAGE_DIR)
+        
+        with image_writer.as_default(): 
+            tf.summary.image("Training Confusion Matrix", image, step=epoch) 
+        
 
 # Create a CSV Logger to Move Log Data into a CSV File after each Epoch
 
@@ -219,8 +267,7 @@ model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
               run_eagerly = False
               )
 
-# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [learning_scheduler_callback, tensorboard_callback])
-
+# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [LogImagesCallback()]
 
 # CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
 
@@ -290,10 +337,7 @@ def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_data
     print("Training Complete!")
 
 # RUN THE TRAINING FUNCTION HERE (Commented out to use tensorboard)
-neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
-
-    
-    
+# neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
 
 # # PLOT LOSS OVER TIME 
 
@@ -318,34 +362,6 @@ neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=ME
 
 test_dataset = test_dataset.batch(1)
 model.evaluate(test_dataset)
-
-# # VISUALIZING CONFUSION MATRIX 
-
-# labels = []
-# inp = []
-
-# for x,y in test_dataset.as_numpy_iterator(): 
-#     labels.append(y)
-#     inp.append(x)
- 
-# inp = np.array(inp)
-# npy_inputs = np.squeeze(inp, axis = 1)
-
-# predicted = model.predict(npy_inputs)
-
-# threshold = 0.5
-# cm = confusion_matrix(labels, predicted > threshold)
-
-# # Plot Confusion Matrix
-
-# plt.figure(figsize=(8,8))
-
-# sns.heatmap(cm, annot=True)
-# plt.title("Confusion Matrix - {}".format(threshold))
-# plt.ylabel('Actual')
-# plt.xlabel('Predicted')
-
-# plt.show()
 
 # # Plotting ROC Curve
 
