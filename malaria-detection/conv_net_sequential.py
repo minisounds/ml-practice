@@ -16,6 +16,7 @@ import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
 from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, LearningRateScheduler, ModelCheckpoint, ReduceLROnPlateau, TensorBoard
+from tensorboard.plugins.hparams import api as hp
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
@@ -105,8 +106,7 @@ class LossCallback(Callback):
     def on_epoch_end(self, epochs, logs): 
         print("/n For Epoch Number {} the Loss Function is {}".format(epochs+1, logs["loss"]))
 
-
-
+# Log Confusion Matrix to Tensorboard 
 
 class LogImagesCallback(Callback):
     def on_epoch_end(self, epoch, logs): 
@@ -233,164 +233,234 @@ def custom_bce(y_true, y_pred):
         
 # CREATE THE MODEL - a LeNet Convolutional Neural Network Architecture using SEQUENTIAL API
 regularization_rate = 0.001
+def model_tune(hparams): 
+    model = tf.keras.Sequential([
+        layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
+        
+        layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(hparams[HP_REGULARIZATION_RATE])),
+        layers.BatchNormalization(),
+        layers.MaxPool2D(pool_size = (2,2), strides = 2),
+        
+        layers.Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(hparams[HP_REGULARIZATION_RATE])),
+        layers.BatchNormalization(),
+        layers.MaxPool2D(pool_size = (2,2), strides = 2),
+        
+        layers.Flatten(),
+        layers.Dense(hparams[HP_NUM_UNITS_1], activation = "relu", kernel_regularizer = L2(hparams[HP_REGULARIZATION_RATE])),
+        layers.BatchNormalization(),
+        Dropout(rate = hparams[HP_DROPOUT]), 
+        layers.Dense(hparams[HP_NUM_UNITS_2], activation = "relu", kernel_regularizer = L2(hparams[HP_REGULARIZATION_RATE])),
+        layers.BatchNormalization(),
+        layers.Dense(1, activation="sigmoid")
+    ])
+    model.summary()
 
-model = tf.keras.Sequential([
-    layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
+    # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
+
+    # DEFINE YOUR METRICS 
+
+    metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(name = "precision"), Recall(name = "recall"), TruePositives(name = "tp"), TrueNegatives(name = "tn"), FalsePositives(name = "fp"), FalseNegatives(name = "fn")]
+
+    model.compile(optimizer = optimizers.Adam(learning_rate = hparams[HP_LEARNING_RATE]),
+                loss = custom_bce,
+                metrics = metrics,
+                run_eagerly = False
+                )
     
-    layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
-    layers.BatchNormalization(),
-    layers.MaxPool2D(pool_size = (2,2), strides = 2),
+    model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1, callbacks = [])
+
+    results = model.evaluate(val_dataset)
+    accuracy = results[1]
+    return accuracy 
+
+HP_NUM_UNITS_1 = hp.HParam('num_units_1', hp.Discrete([16, 32, 64, 128]))
+HP_NUM_UNITS_2 = hp.HParam('num_units_2', hp.Discrete([16, 32, 64, 128]))
+HP_DROPOUT = hp.HParam('dropout_rate', hp.Discrete([0.1, 0.2, 0.3, 0.4]))
+HP_REGULARIZATION_RATE = hp.HParam('regularization_rate', hp.Discrete([0.001, 0.01, 0.1]))
+HP_LEARNING_RATE = hp.HParam('learning_rate', hp.Discrete([1e-4, 1e-3]))
+
+run_number = 0
+for num_units_1 in HP_NUM_UNITS_1.domain.values:
+    for num_units_2 in HP_NUM_UNITS_2.domain.values:
+        for dropout_rate in HP_DROPOUT.domain.values:
+            for regularization_rate in HP_REGULARIZATION_RATE.domain.values:
+                for learning_rate in HP_LEARNING_RATE.domain.values:
+                    
+                    hparams = {
+                        HP_NUM_UNITS_1: num_units_1,
+                        HP_NUM_UNITS_2: num_units_2,
+                        HP_DROPOUT: dropout_rate,
+                        HP_REGULARIZATION_RATE: regularization_rate,
+                        HP_LEARNING_RATE: learning_rate,
+                    }
+                    file_writer = tf.summary.create_file_writer('./tensorboard_logs/' + str(run_number))
+                    
+                    with file_writer.as_default():
+                        hp.hparams(hparams)
+                        accuracy = model_tune(hparams)
+                        tf.summary.scalar('accuracy', accuracy, step = 1)
+                    
+                    print("For run {}, our hparams num_units_1:{}, num_units_2:{}, dropout:{}, regularization_rate:{}, learning_rate:{}".format(run_number,hparams[HP_NUM_UNITS_1], hparams[HP_NUM_UNITS_2], hparams[HP_DROPOUT], hparams[HP_REGULARIZATION_RATE], hparams[HP_LEARNING_RATE]), hparams)
+                    run_number += 1
+
+# model = tf.keras.Sequential([
+#     layers.InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
     
-    layers.Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(l2 = regularization_rate)),
-    layers.BatchNormalization(),
-    layers.MaxPool2D(pool_size = (2,2), strides = 2),
+#     layers.Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(hparams['HP_REGULARIZATION_RATE'])),
+#     layers.BatchNormalization(),
+#     layers.MaxPool2D(pool_size = (2,2), strides = 2),
     
-    layers.Flatten(),
-    NeuraLearnDense(100, activation = "relu", l2_rate = regularization_rate),
-    layers.BatchNormalization(),
-    Dropout(rate = 0.3), 
-    NeuraLearnDense(10, activation = "relu", l2_rate = regularization_rate),
-    layers.BatchNormalization(),
-    NeuraLearnDense(1, activation="sigmoid", l2_rate = 0)
-])
+#     layers.Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = "valid", activation = "relu", kernel_regularizer = L2(hparams['HP_REGULARIZATION_RATE'])),
+#     layers.BatchNormalization(),
+#     layers.MaxPool2D(pool_size = (2,2), strides = 2),
+    
+#     layers.Flatten(),
+#     layers.Dense(hparams['HP_NUM_UNITS_1'], activation = "relu", l2_rate = regularization_rate),
+#     layers.BatchNormalization(),
+#     Dropout(rate = hparams["HP_DROPOUT"]), 
+#     layers.Dense(hparams['HP_NUM_UNITS_2'], activation = "relu", l2_rate = regularization_rate),
+#     layers.BatchNormalization(),
+#     NeuraLearnDense(1, activation="sigmoid", l2_rate = 0)
+# ])
 # model.summary()
 
-# COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
+# # COMPILE THE MODEL - Use Binary Cross Entropy Loss Function and Adam Optimizer
 
-# DEFINE YOUR METRICS 
+# # DEFINE YOUR METRICS 
 
-metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(name = "precision"), Recall(name = "recall"), TruePositives(name = "tp"), TrueNegatives(name = "tn"), FalsePositives(name = "fp"), FalseNegatives(name = "fn")]
+# metrics = [BinaryAccuracy(name = "bin accuracy"), AUC(name = "auc"), Precision(name = "precision"), Recall(name = "recall"), TruePositives(name = "tp"), TrueNegatives(name = "tn"), FalsePositives(name = "fp"), FalseNegatives(name = "fn")]
 
-model.compile(optimizer = optimizers.Adam(learning_rate = 0.01),
-              loss = custom_bce,
-              metrics = metrics,
-              run_eagerly = False
-              )
+# model.compile(optimizer = optimizers.Adam(learning_rate = hparams[HP_LEARNING_RATE]),
+#             loss = custom_bce,
+#             metrics = metrics,
+#             run_eagerly = False
+#             )
 
-# history = model.fit(train_dataset, validation_data = val_dataset, epochs = 3, verbose = 1, callbacks = [LogImagesCallback()]
+# model.fit(train_dataset, validation_data = val_dataset, epochs = 1, verbose = 1, callbacks = [])
 
-# CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
 
-# PREPARE CUSTOM TRAINING LOOP TENSORBOARD LOGS
-CUSTOM_METRIC_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/metrics'
-CUSTOM_TRAIN_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/train'
-CUSTOM_VAL_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/validation' # Have to Create a Writer to Log Validation Data, as well. Model.fit() normally handles this automatically 
+# # CREATE CUSTOM TRAINING LOOP IN PLACE OF MODEL.FIT
 
-custom_train_writer = tf.summary.create_file_writer(CUSTOM_TRAIN_DIR)
-custom_validation_writer = tf.summary.create_file_writer(CUSTOM_VAL_DIR) # Create two validation writers to log changes to different files 
+# # PREPARE CUSTOM TRAINING LOOP TENSORBOARD LOGS
+# CUSTOM_METRIC_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/metrics'
+# CUSTOM_TRAIN_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/train'
+# CUSTOM_VAL_DIR = './custom_tensorboard_logs/' + CURRENT_TIME + '/validation' # Have to Create a Writer to Log Validation Data, as well. Model.fit() normally handles this automatically 
 
-# SET CONSTANTS 
-OPTIMIZER = optimizers.Adam(learning_rate=0.01)
-METRIC = BinaryAccuracy()
-METRIC_VAL = BinaryAccuracy()
-EPOCHS = 2
-tf.config.run_functions_eagerly(False)
+# custom_train_writer = tf.summary.create_file_writer(CUSTOM_TRAIN_DIR)
+# custom_validation_writer = tf.summary.create_file_writer(CUSTOM_VAL_DIR) # Create two validation writers to log changes to different files 
 
-@tf.function #use graph mode to compute this for faster training times 
-def training_block(x_batch, y_batch): 
-    with tf.GradientTape() as recorder: # record the gradients in this tape recorder (to make partial derivative)
-        y_pred = model(x_batch, training = True) 
-        loss = custom_bce(y_batch, y_pred) # use custom loss function (binary cross entropy) to calc loss
+# # SET CONSTANTS 
+# OPTIMIZER = optimizers.Adam(learning_rate=0.01)
+# METRIC = BinaryAccuracy()
+# METRIC_VAL = BinaryAccuracy()
+# EPOCHS = 2
+# tf.config.run_functions_eagerly(False)
+
+# @tf.function #use graph mode to compute this for faster training times 
+# def training_block(x_batch, y_batch): 
+#     with tf.GradientTape() as recorder: # record the gradients in this tape recorder (to make partial derivative)
+#         y_pred = model(x_batch, training = True) 
+#         loss = custom_bce(y_batch, y_pred) # use custom loss function (binary cross entropy) to calc loss
         
-    partial_derivatives = recorder.gradient(loss, model.trainable_weights) # uses recorded losses to calculate the partial derivative between the loss and each of the model's trainable weights
-    OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
-    # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
+#     partial_derivatives = recorder.gradient(loss, model.trainable_weights) # uses recorded losses to calculate the partial derivative between the loss and each of the model's trainable weights
+#     OPTIMIZER.apply_gradients(zip(partial_derivatives, model.trainable_weights)) # uses the ADAM optimizer to apply the gradients 
+#     # zip() function uses seperate derivatives [deriv1, deriv2] and weights [weight1, weight2] into [(grad1, weight1), (grad2, weight2)]
         
-    METRIC.update_state(y_batch, y_pred) # takes in y_batch as a true value, y_pred as predicted variable. update_state() adds to the counter of total correct predictions avs total predictions, used to calculate the final accuracy of the model
+#     METRIC.update_state(y_batch, y_pred) # takes in y_batch as a true value, y_pred as predicted variable. update_state() adds to the counter of total correct predictions avs total predictions, used to calculate the final accuracy of the model
 
-    return loss
+#     return loss
 
-@tf.function #convert to graph mode
-def val_block(x_batch_val, y_batch_val):
-    y_pred_val = model(x_batch_val, training = False) # important: set training = False
-    loss_val = custom_bce(y_batch_val, y_pred_val)
-    METRIC_VAL.update_state(y_batch_val, y_pred_val) 
+# @tf.function #convert to graph mode
+# def val_block(x_batch_val, y_batch_val):
+#     y_pred_val = model(x_batch_val, training = False) # important: set training = False
+#     loss_val = custom_bce(y_batch_val, y_pred_val)
+#     METRIC_VAL.update_state(y_batch_val, y_pred_val) 
     
-    return loss_val
+#     return loss_val
 
-# CREATE TRAINING FUNCTION
-def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_dataset, EPOCHS, OPTIMIZER):
-    for epoch in range(EPOCHS): 
-        print("Training Begins for Epoch number {}".format(epoch+1))
-        for (x_batch, y_batch) in train_dataset: # enumerate train_dataset to help keep track of how many steps we've gotten through
-            loss = training_block(x_batch, y_batch)
+# # CREATE TRAINING FUNCTION
+# def neuralearn(model, loss_function, METRIC, VAL_METRIC, train_dataset, val_dataset, EPOCHS, OPTIMIZER):
+#     for epoch in range(EPOCHS): 
+#         print("Training Begins for Epoch number {}".format(epoch+1))
+#         for (x_batch, y_batch) in train_dataset: # enumerate train_dataset to help keep track of how many steps we've gotten through
+#             loss = training_block(x_batch, y_batch)
                 
-        print("The Loss is: ", loss.numpy())        
-        print("The accuracy is: ", METRIC.result().numpy())
-        with custom_train_writer.as_default(): # Log Training Loss and Accuracy to the Training Writer File 
-            tf.summary.scalar('Training Loss', data = loss, step = epoch)
-        with custom_train_writer.as_default():
-            tf.summary.scalar('Training Accuracy', data = METRIC.result(), step = epoch)
-        METRIC.reset_states()
+#         print("The Loss is: ", loss.numpy())        
+#         print("The accuracy is: ", METRIC.result().numpy())
+#         with custom_train_writer.as_default(): # Log Training Loss and Accuracy to the Training Writer File 
+#             tf.summary.scalar('Training Loss', data = loss, step = epoch)
+#         with custom_train_writer.as_default():
+#             tf.summary.scalar('Training Accuracy', data = METRIC.result(), step = epoch)
+#         METRIC.reset_states()
         
-        for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
-            loss_val = val_block(x_batch_val, y_batch_val)
+#         for (x_batch_val, y_batch_val) in val_dataset: # calculate validation loss after going through epoch x
+#             loss_val = val_block(x_batch_val, y_batch_val)
             
-        print("Validation loss", loss_val.numpy())
-        print ("The Validation Accuracy is: ", METRIC_VAL.result().numpy())
-        with custom_validation_writer.as_default(): # Log Validation Loss and Accuracy to the Validation Writer File
-            tf.summary.scalar('Validation Loss', data = loss_val, step = epoch)
-        with custom_validation_writer.as_default():
-            tf.summary.scalar('Validation Accuracy', data = METRIC_VAL.result(), step = epoch)
-        METRIC_VAL.reset_states()
+#         print("Validation loss", loss_val.numpy())
+#         print ("The Validation Accuracy is: ", METRIC_VAL.result().numpy())
+#         with custom_validation_writer.as_default(): # Log Validation Loss and Accuracy to the Validation Writer File
+#             tf.summary.scalar('Validation Loss', data = loss_val, step = epoch)
+#         with custom_validation_writer.as_default():
+#             tf.summary.scalar('Validation Accuracy', data = METRIC_VAL.result(), step = epoch)
+#         METRIC_VAL.reset_states()
         
-    print("Training Complete!")
+#     print("Training Complete!")
 
-# RUN THE TRAINING FUNCTION HERE (Commented out to use tensorboard)
-# neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
+# # RUN THE TRAINING FUNCTION HERE (Commented out to use tensorboard)
+# # neuralearn(model = model, loss_function=custom_bce, METRIC=METRIC, VAL_METRIC=METRIC_VAL, train_dataset = train_dataset, val_dataset=val_dataset, EPOCHS = EPOCHS, OPTIMIZER = OPTIMIZER)
 
-# # PLOT LOSS OVER TIME 
+# # # PLOT LOSS OVER TIME 
 
-# plt.plot(history.history['loss'])
-# plt.plot(history.history['val_loss'])
-# plt.title('MODEL LOSS')
-# plt.ylabel('LOSS')
-# plt.xlabel('EPOCHS')
-# plt.legend(['train', "val_loss"])
-# plt.show()
+# # plt.plot(history.history['loss'])
+# # plt.plot(history.history['val_loss'])
+# # plt.title('MODEL LOSS')
+# # plt.ylabel('LOSS')
+# # plt.xlabel('EPOCHS')
+# # plt.legend(['train', "val_loss"])
+# # plt.show()
 
-# plt.plot(history.history['accuracy'])
-# plt.plot(history.history['val_accuracy'])
-# plt.title('MODEL ACCURACY')
-# plt.ylabel('ACCURACY')
-# plt.xlabel('EPOCHS')
-# plt.legend(['train', "val_accuracy"])
-# plt.show()
+# # plt.plot(history.history['accuracy'])
+# # plt.plot(history.history['val_accuracy'])
+# # plt.title('MODEL ACCURACY')
+# # plt.ylabel('ACCURACY')
+# # plt.xlabel('EPOCHS')
+# # plt.legend(['train', "val_accuracy"])
+# # plt.show()
 
 
-# MODEL EVALUATION AND TESTING 
+# # MODEL EVALUATION AND TESTING 
 
-test_dataset = test_dataset.batch(1)
-model.evaluate(test_dataset)
+# test_dataset = test_dataset.batch(1)
+# model.evaluate(test_dataset)
 
-# # Plotting ROC Curve
+# # # Plotting ROC Curve
 
-# fp, tp, threshold = roc_curve(labels, predicted)
-# plt.plot(fp, tp)
-# plt.xlabel("False Positive Rate")
-# plt.ylabel("True Positive Rate")
-# plt.title("ROC Curve")
+# # fp, tp, threshold = roc_curve(labels, predicted)
+# # plt.plot(fp, tp)
+# # plt.xlabel("False Positive Rate")
+# # plt.ylabel("True Positive Rate")
+# # plt.title("ROC Curve")
 
-# plt.grid()
+# # plt.grid()
 
-# skip = 20
+# # skip = 20
 
-# for i in range(0, len(threshold), skip): 
-#     plt.text(fp[i], tp[i], threshold[i])
+# # for i in range(0, len(threshold), skip): 
+# #     plt.text(fp[i], tp[i], threshold[i])
 
-# plt.show()
+# # plt.show()
 
-# # VISUALIZE YOUR DATA
+# # # VISUALIZE YOUR DATA
 
-# def parasite_or_not(x): 
-#     if(x < 0.5): 
-#         return str('P')
-#     else: 
-#         return str('U')
+# # def parasite_or_not(x): 
+# #     if(x < 0.5): 
+# #         return str('P')
+# #     else: 
+# #         return str('U')
     
-# for i, (image, label) in enumerate(test_dataset.take(9)): 
-#     ax = plt.subplot(3, 3, i+1)
-#     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
-#     plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
-#     plt.axis('off')
-#     plt.show()
+# # for i, (image, label) in enumerate(test_dataset.take(9)): 
+# #     ax = plt.subplot(3, 3, i+1)
+# #     plt.imshow(image[0]) # take the 0th element of image object because that's where the link to the image actually is    
+# #     plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + parasite_or_not(model.predict(image)[0][0]))
+# #     plt.axis('off')
+# #     plt.show()
