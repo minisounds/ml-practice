@@ -98,22 +98,19 @@ validation_dataset = (
     val_dataset.prefetch(tf.data.AUTOTUNE)
 )
 
-# resize_rescale() function 
+
+# BUILD THE MODEL - LENET MODEL
+
+# resize_rescale() function in Sequential Model Form
 resize_rescale_layers = Sequential([
     Resizing(height = CONFIGURATION["IM_SIZE"], width = CONFIGURATION["IM_SIZE"]),
     Rescaling(scale=1./255),
 ])
 
-# BUILD THE MODEL - LENET MODEL
-
-# CONFIGURATION = wandb.config 
-LEARNING_RATE = CONFIGURATION["LEARNING_RATE"]
-N_EPOCHS = CONFIGURATION["N_EPOCHS"]
-
-
 model = tf.keras.Sequential([
-    layers.InputLayer(input_shape = (CONFIGURATION["IM_SIZE"], CONFIGURATION["IM_SIZE"], 3)),
-    Rescaling(scale = 1./255),
+    layers.InputLayer(input_shape = (None, None, 3)),
+    
+    resize_rescale_layers,
 
     layers.Conv2D(filters = CONFIGURATION["N_FILTERS"], kernel_size = CONFIGURATION["KERNEL_SIZE"], strides = CONFIGURATION["N_STRIDES"], padding = "valid", activation = "relu", kernel_regularizer = L2(CONFIGURATION["REGULARIZATION_RATE"])),
     layers.BatchNormalization(),
@@ -139,19 +136,24 @@ loss_function = tf.keras.losses.SparseCategoricalCrossentropy(
 )
 
 # Metrics
-metrics = [tf.keras.metrics.CategoricalAccuracy(name = "accuracy"), tf.keras.metrics.TopKCategoricalAccuracy(k=2, name = "top_k_accuracy")]
+metrics = [tf.keras.metrics.SparseCategoricalAccuracy(name = "accuracy"), tf.keras.metrics.SparseTopKCategoricalAccuracy(k=2, name = "top_k_accuracy")]
 
 # Compile Model
 model.compile(
     optimizer = optimizers.Adam(learning_rate = CONFIGURATION["LEARNING_RATE"]),
     loss = loss_function,
-    metrics = metrics
+    metrics = metrics,
 )
 
-# 
+# Fit the Model 
 history = model.fit(training_dataset,
                     validation_data = validation_dataset,
                     epochs = CONFIGURATION["N_EPOCHS"],
                     verbose = 1
                     )
 
+# Evaluate the Model against Validation Data
+
+model.evaluate(val_dataset)
+
+# 
