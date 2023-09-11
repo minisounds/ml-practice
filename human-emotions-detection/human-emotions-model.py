@@ -25,6 +25,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from tensorflow import data
 
+
 # USEFUL CONSTANTS: 
 train_directory = "./dataset/Emotions Dataset/Emotions Dataset/train"
 validation_directory = "./dataset/Emotions Dataset/Emotions Dataset/test"
@@ -34,7 +35,7 @@ CONFIGURATION = {
     "BATCH_SIZE": 32,
     "IM_SIZE": 256,
     "LEARNING_RATE": 0.001,
-    "N_EPOCHS": 5,
+    "N_EPOCHS": 11,
     "DROPOUT_RATE": 0.0,
     "REGULARIZATION_RATE": 0.0,
     "N_FILTERS": 6,
@@ -73,21 +74,6 @@ val_dataset = keras.utils.image_dataset_from_directory(
     validation_split=None, # allows you to split dataset into two parts for validation & training. but we don't need since the kaggle dataset already segments it into test and training for us
 )
 
-# DATA VISUALIZATION 
-emotions_index = {
-    0: "angry",
-    1: "happy",
-    2: "sad",
-}
-
-plt.figure(figsize=(12,12))
-for images, labels in train_dataset.take(1): 
-    for i in range(16): 
-        ax = plt.subplot(4,4, i+1)
-        plt.imshow(images[i]/255.)
-        plt.title(emotions_index[labels[i].numpy()])
-        plt.axis("off")
-        # plt.show()
          
 # DATASET PREPARATION - add prefetching to it
 training_dataset = (
@@ -152,8 +138,20 @@ history = model.fit(training_dataset,
                     verbose = 1
                     )
 
-# Evaluate the Model against Validation Data
+# VISUALIZE WHAT THE MODEL IS PREDICTING TO WHAT THE ACTUAL LABEL IS 
+emotions_index = {
+    0: "Angry",
+    1: "Happy",
+    2: "Sad",
+}
 
-model.evaluate(val_dataset)
+for images, labels in validation_dataset.take(1): # take 1 "batch" from validation dataset
+    for i in range(16): #
+        ax = plt.subplot(4,4, i+1)
+        plt.imshow(images[i]/255.)
+        plt.title("True Label: " + emotions_index[labels[i].numpy()] + "\n" + "Predicted Label: " + emotions_index[tf.argmax(model(tf.expand_dims(images[i], axis = 0)), axis = -1).numpy()[0]])
+        # ^ Note: tf.argmax(Tensor, axis, name)'s second parameter of axis works like this: axis = 1 returns the index of the max arg in each column. axis = 0 returns index for each row, axis = -1s
+        plt.axis("off")
+        plt.show() 
 
-# 
+
