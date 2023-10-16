@@ -11,7 +11,7 @@ import io # for saving images to tensorboard
 import albumentations as A # for data augmentation
 from keras import layers, losses, optimizers, models
 from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling
+from tensorflow.keras.layers import Layer, Dropout, Resizing, Rescaling, RandomRotation, RandomContrast
 from tensorflow.keras.metrics import AUC, BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall
 from tensorflow.keras.regularizers import L2
 import tensorflow_probability as tfp 
@@ -74,16 +74,29 @@ val_dataset = keras.utils.image_dataset_from_directory(
     validation_split=None, # allows you to split dataset into two parts for validation & training. but we don't need since the kaggle dataset already segments it into test and training for us
 )
 
-         
+# DATA AUGMENTATION
+
+# Data Augmentation - use tf.keras.layers in a sequential model to augment data
+augment_layers = tf.keras.Sequential([
+    RandomRotation(factor = (0, 0.1)),
+    RandomContrast(factor = (0, 0.5)),
+])
+
+def augment_layer(image, label): 
+    return augment_layers(image, training = True), label
+
 # DATASET PREPARATION - add prefetching to it
 training_dataset = (
-    train_dataset.prefetch(tf.data.AUTOTUNE)
+    train_dataset
+    .map(augment_layer, num_parallel_calls = tf.data.AUTOTUNE)
+    # tensorflow Dataset .map() function supplies each element of the dataset (image, label) as arguments
+    # Dataset .map() method allows for parallel computing 
+    .prefetch(tf.data.AUTOTUNE)
 )
 
 validation_dataset = (
     val_dataset.prefetch(tf.data.AUTOTUNE)
 )
-
 
 # BUILD THE MODEL - LENET MODEL
 
